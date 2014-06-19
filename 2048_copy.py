@@ -23,33 +23,32 @@ class GameController:
         self.current_score = 0
         self.pieces = [[0, 0, 2]]
 
-    def refresh_output(self):
-        for listener in self.output_listeners:
-            listener.game_state_change(
-                    self.pieces,
-                    self.current_score)
-
-
     # controller info
     #
 
     def get_state(self):
         return self.is_active
 
+    def get_board_size(self):
+        return (self.board_width, self.board_height)
+
+    def get_current_game_state(self):
+        return (self.pieces, self.current_score)
 
     # notifier interface
     #
 
     def register_output_listener(self, output_listener):
         self.output_listeners.append(output_listener)
-        output_listener.register_notification(
-                self,
-                self.board_width, self.board_height,
-                self.pieces, self.current_score)
+        output_listener.register_notification(self)
 
     def unregister_output_listener(self, output_listener):
         output_listener.unregister_notification(self)
         self.output_listeners.remove(output_listener)
+
+    def notify_output_listeners(self):
+        for listener in self.output_listeners:
+            listener.game_state_change_notification(self)
 
     # listener interface
     #
@@ -66,12 +65,12 @@ class GameController:
 
         self.current_score += 2
 
-        self.refresh_output()
+        self.notify_output_listeners()
 
     def restart_event(self):
         self.init_game()
 
-        self.refresh_output()
+        self.notify_output_listeners()
 
     def exit_event(self):
         self.is_active = False
@@ -110,6 +109,12 @@ class CursesOutput:
         self.inside_tile_width = self.tile_width - 2
         self.board_width = self.board_width_tiles * self.tile_width
         self.board_height = self.board_height_tiles * self.tile_height
+
+    def redraw(self, pieces, score):
+        self.window.erase()
+        self.draw_game_window(score)
+        self.draw_pieces(pieces)
+        self.window.refresh()
 
     def draw_game_window(self, score):
         game_area_border = \
@@ -169,22 +174,17 @@ class CursesOutput:
     # listener interface
     #
 
-    def register_notification(
-            self, notifier,
-            board_width_tiles, board_height_tiles, pieces, score):
-        self.board_width_tiles = board_width_tiles
-        self.board_height_tiles = board_height_tiles
+    def register_notification(self, notifier):
+        (self.board_width_tiles, self.board_height_tiles) = \
+                notifier.get_board_size()
         self.generate_parametrized()
-        self.game_state_change(pieces, score)
+        self.redraw(*notifier.get_current_game_state())
 
     def unregister_notification(self):
         pass
 
-    def game_state_change(self, pieces, score):
-        self.window.erase()
-        self.draw_game_window(score)
-        self.draw_pieces(pieces)
-        self.window.refresh()
+    def game_state_change_notification(self, notifier):
+        self.redraw(*notifier.get_current_game_state())
 
 
 class CursesInput:
