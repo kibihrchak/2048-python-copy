@@ -13,7 +13,7 @@ MOVEMENT_KEYS = (
 class GameController:
     def __init__(self):
         self.init_game()
-        self.output_controllers = []
+        self.output_listeners = []
         self.is_active = True
 
         self.board_width = 4
@@ -24,25 +24,32 @@ class GameController:
         self.pieces = [[0, 0, 2]]
 
     def refresh_output(self):
-        for listener in self.output_controllers:
+        for listener in self.output_listeners:
             listener.game_state_change(
                     self.pieces,
                     self.current_score)
 
+
+    # controller info
+    #
+
     def get_state(self):
         return self.is_active
+
 
     # notifier interface
     #
 
-    def register_listener(self, output_controller):
-        self.output_controllers.append(output_controller)
-        output_controller.game_state_change(
-                self.pieces,
-                self.current_score)
+    def register_output_listener(self, output_listener):
+        self.output_listeners.append(output_listener)
+        output_listener.register_notification(
+                self,
+                self.board_width, self.board_height,
+                self.pieces, self.current_score)
 
-    def unregister_listener(self, output_controller):
-        self.output_controllers.remove(output_controller)
+    def unregister_output_listener(self, output_listener):
+        output_listener.unregister_notification(self)
+        self.output_listeners.remove(output_listener)
 
     # listener interface
     #
@@ -69,6 +76,7 @@ class GameController:
     def exit_event(self):
         self.is_active = False
 
+
 class CursesOutput:
     def __init__(self, window):
         self.window = window
@@ -76,12 +84,9 @@ class CursesOutput:
         # width, and height of a single tile in characters
         self.tile_width = 6
         self.tile_height = 3
-        self.inside_tile_width = self.tile_width - 2
         # width, and height of a playing board
-        self.board_width_tiles = 4
-        self.board_height_tiles = 4
-        self.board_width = self.board_width_tiles * self.tile_width
-        self.board_height = self.board_height_tiles * self.tile_height
+        self.board_width_tiles = 0
+        self.board_height_tiles = 0
 
         # drawing location for the board
         self.board_x = 0
@@ -94,6 +99,17 @@ class CursesOutput:
         self.piece_hl_char = "-"
         self.piece_vl_char = "|"
         self.piece_inner_char = " "
+
+        # parametrized fields
+        self.inside_tile_width = 0
+        self.board_width = 0
+        self.board_height = 0
+        self.generate_parametrized()
+
+    def generate_parametrized(self):
+        self.inside_tile_width = self.tile_width - 2
+        self.board_width = self.board_width_tiles * self.tile_width
+        self.board_height = self.board_height_tiles * self.tile_height
 
     def draw_game_window(self, score):
         game_area_border = \
@@ -153,11 +169,23 @@ class CursesOutput:
     # listener interface
     #
 
+    def register_notification(
+            self, notifier,
+            board_width_tiles, board_height_tiles, pieces, score):
+        self.board_width_tiles = board_width_tiles
+        self.board_height_tiles = board_height_tiles
+        self.generate_parametrized()
+        self.game_state_change(pieces, score)
+
+    def unregister_notification(self):
+        pass
+
     def game_state_change(self, pieces, score):
         self.window.erase()
         self.draw_game_window(score)
         self.draw_pieces(pieces)
         self.window.refresh()
+
 
 class CursesInput:
     def __init__(self, window):
@@ -194,7 +222,7 @@ def main(stdscr):
     co = CursesOutput(stdscr)
     ci = CursesInput(stdscr)
 
-    gc.register_listener(co)
+    gc.register_output_listener(co)
     ci.register_listener(gc)
 
     while(gc.get_state()):
