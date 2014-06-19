@@ -4,11 +4,6 @@ import curses
 import os
 from enum import Enum
 
-TILE_WIDTH = 6
-TILE_HEIGHT = 3
-TILES_HORIZONTAL = 4
-TILES_VERTICAL = 4
-
 MOVEMENT_KEYS = (
         curses.KEY_UP,
         curses.KEY_DOWN,
@@ -20,6 +15,9 @@ class GameController:
         self.init_game()
         self.output_controllers = []
         self.is_active = True
+
+        self.board_width = 4
+        self.board_height = 4
 
     def init_game(self):
         self.current_score = 0
@@ -53,11 +51,11 @@ class GameController:
         if (movement_direction == curses.KEY_UP):
             self.pieces[0][1] = 0
         elif (movement_direction == curses.KEY_DOWN):
-            self.pieces[0][1] = TILES_VERTICAL - 1
+            self.pieces[0][1] = self.board_height - 1
         elif (movement_direction == curses.KEY_LEFT):
             self.pieces[0][0] = 0
         elif (movement_direction == curses.KEY_RIGHT):
-            self.pieces[0][0] = TILES_HORIZONTAL - 1
+            self.pieces[0][0] = self.board_width - 1
 
         self.current_score += 2
 
@@ -75,63 +73,78 @@ class CursesOutput:
     def __init__(self, window):
         self.window = window
 
+        # width, and height of a single tile in characters
+        self.tile_width = 6
+        self.tile_height = 3
+        self.inside_tile_width = self.tile_width - 2
+        # width, and height of a playing board
+        self.board_width_tiles = 4
+        self.board_height_tiles = 4
+        self.board_width = self.board_width_tiles * self.tile_width
+        self.board_height = self.board_height_tiles * self.tile_height
+
+        # drawing location for the board
+        self.board_x = 0
+        self.board_y = 3
+
+        self.game_area_border_char = "="
+        self.tile_border_char = "."
+        self.tile_inner_char = " "
+        self.piece_border_char = "x"
+        self.piece_hl_char = "-"
+        self.piece_vl_char = "|"
+        self.piece_inner_char = " "
+
     def draw_game_window(self, score):
-        GAME_AREA_BORDER_CHAR = "="
         game_area_border = \
-                GAME_AREA_BORDER_CHAR  * TILE_WIDTH * TILES_HORIZONTAL
+                self.game_area_border_char * self.board_width
 
         self.window.addstr(0, 0, "2048 copy")
         self.window.addstr(1, 0, "Score: {}".format(score))
         self.window.addstr(2, 0, game_area_border)
-        self.draw_tiles(0, 3)
+        self.draw_tiles()
         self.window.addstr(
-                3 + TILE_HEIGHT * TILES_VERTICAL, 0,
-                game_area_border)
+                self.board_y + self.board_height, 0, game_area_border)
 
-    def draw_tiles(self, x, y):
-        BORDER_CHAR = "."
-        INNER_CHAR = " "
-        INSIDE_AREA_WIDTH = TILE_WIDTH - 2
+    def draw_tiles(self):
+        border_line = self.tile_border_char * self.board_width
+        inner_line_tile = "".join((
+                self.tile_border_char,
+                self.tile_inner_char * self.inside_tile_width,
+                self.tile_border_char))
+        inner_line = inner_line_tile * self.board_width_tiles
 
-        border_line = BORDER_CHAR * TILE_WIDTH * TILES_HORIZONTAL
-        inner_line_piece = "".join((
-                BORDER_CHAR,
-                INNER_CHAR * INSIDE_AREA_WIDTH,
-                BORDER_CHAR))
-        inner_line = inner_line_piece * TILES_HORIZONTAL
+        start_line = self.board_y
 
-        for tile_row in range(TILES_VERTICAL):
-            start_line = y + tile_row * TILE_HEIGHT
+        for tile_row in range(self.board_height_tiles):
+            self.window.addstr(
+                    start_line, self.board_x, border_line)
+            self.window.addstr(
+                    start_line + 1, self.board_x, inner_line)
+            self.window.addstr(
+                    start_line + 2, self.board_x, border_line)
 
-            self.window.addstr(start_line, x, border_line)
-            self.window.addstr(start_line + 1, x, inner_line)
-            self.window.addstr(start_line + 2, x, border_line)
+            start_line += self.tile_height
 
     def draw_pieces(self, pieces):
         for piece in pieces:
             self.draw_piece(
-                    piece[0] * TILE_WIDTH,
-                    piece[1] * TILE_HEIGHT + 3,
+                    piece[0] * self.tile_width + self.board_x,
+                    piece[1] * self.tile_height + self.board_y,
                     piece[2])
 
     def draw_piece(self, x, y, value):
-        BORDER_CHAR = "x"
-        HL_CHAR = "-"
-        VL_CHAR = "|"
-        INNER_CHAR = " "
-        INSIDE_AREA_WIDTH = TILE_WIDTH - 2
-
         border_line = "".join((
-                BORDER_CHAR,
-                HL_CHAR * INSIDE_AREA_WIDTH,
-                BORDER_CHAR))
+                self.piece_border_char,
+                self.piece_hl_char * self.inside_tile_width,
+                self.piece_border_char))
         middle_line = "".join((
-                VL_CHAR,
+                self.piece_vl_char,
                 "{:{fill}^{width}d}".format(
                     value,
-                    fill = INNER_CHAR,
-                    width = INSIDE_AREA_WIDTH),
-                VL_CHAR))
+                    fill = self.piece_inner_char,
+                    width = self.inside_tile_width),
+                self.piece_vl_char))
 
         self.window.addstr(y, x, border_line)
         self.window.addstr(y + 1, x, middle_line)
