@@ -4,13 +4,14 @@ import curses
 import os
 from enum import Enum
 
-MOVEMENT_KEYS = (
-        curses.KEY_UP,
-        curses.KEY_DOWN,
-        curses.KEY_LEFT,
-        curses.KEY_RIGHT)
 
 class GameController:
+    class MovementDirections(Enum):
+        up = 1
+        down = 2
+        left = 3
+        right = 4
+
     def __init__(self):
         self.init_game()
         self.output_listeners = []
@@ -18,6 +19,8 @@ class GameController:
 
         self.board_width = 4
         self.board_height = 4
+
+        self.help_displayed = False
 
     def init_game(self):
         self.current_score = 0
@@ -54,13 +57,17 @@ class GameController:
     #
 
     def movement_event(self, movement_direction):
-        if (movement_direction == curses.KEY_UP):
+        if (movement_direction ==
+                GameController.MovementDirections.up):
             self.pieces[0][1] = 0
-        elif (movement_direction == curses.KEY_DOWN):
+        elif (movement_direction ==
+                GameController.MovementDirections.down):
             self.pieces[0][1] = self.board_height - 1
-        elif (movement_direction == curses.KEY_LEFT):
+        elif (movement_direction ==
+                GameController.MovementDirections.left):
             self.pieces[0][0] = 0
-        elif (movement_direction == curses.KEY_RIGHT):
+        elif (movement_direction ==
+                GameController.MovementDirections.right):
             self.pieces[0][0] = self.board_width - 1
 
         self.current_score += 2
@@ -75,10 +82,21 @@ class GameController:
     def exit_event(self):
         self.is_active = False
 
+    def help_event(self):
+        if not self.help_displayed:
+            for listener in self.output_listeners:
+                listener.open_help()
+            self.help_displayed = True
+        else:
+            for listener in self.output_listeners:
+                listener.close_help()
+            self.help_displayed = False
 
 class CursesOutput:
     def __init__(self, window):
         self.window = window
+
+        self.help_window = None
 
         # width, and height of a single tile in characters
         self.tile_width = 6
@@ -91,6 +109,9 @@ class CursesOutput:
         self.board_x = 0
         self.board_y = 3
 
+        self.pieces = list()
+        self.score = 0
+
         self.game_area_border_char = "="
         self.tile_border_char = "."
         self.tile_inner_char = " "
@@ -99,29 +120,40 @@ class CursesOutput:
         self.piece_vl_char = "|"
         self.piece_inner_char = " "
 
+        self.help_window_margin = 1
+
         # parametrized fields
         self.inside_tile_width = 0
         self.board_width = 0
         self.board_height = 0
+        self.window_width = 0
+        self.window_height = 0
+
         self.generate_parametrized()
+
 
     def generate_parametrized(self):
         self.inside_tile_width = self.tile_width - 2
         self.board_width = self.board_width_tiles * self.tile_width
         self.board_height = self.board_height_tiles * self.tile_height
+        self.window_width = self.board_width
+        self.window_height = self.board_height + 2 + 2
 
-    def redraw(self, pieces, score):
+    def redraw(self):
         self.window.erase()
-        self.draw_game_window(score)
-        self.draw_pieces(pieces)
+        self.draw_game_window()
+        self.draw_pieces()
         self.window.refresh()
 
-    def draw_game_window(self, score):
+        if self.help_window != None:
+            self.draw_help_window()
+
+    def draw_game_window(self):
         game_area_border = \
                 self.game_area_border_char * self.board_width
 
         self.window.addstr(0, 0, "2048 copy")
-        self.window.addstr(1, 0, "Score: {}".format(score))
+        self.window.addstr(1, 0, "Score: {}".format(self.score))
         self.window.addstr(2, 0, game_area_border)
         self.draw_tiles()
         self.window.addstr(
@@ -147,8 +179,8 @@ class CursesOutput:
 
             start_line += self.tile_height
 
-    def draw_pieces(self, pieces):
-        for piece in pieces:
+    def draw_pieces(self):
+        for piece in self.pieces:
             self.draw_piece(
                     piece[0] * self.tile_width + self.board_x,
                     piece[1] * self.tile_height + self.board_y,
@@ -171,6 +203,11 @@ class CursesOutput:
         self.window.addstr(y + 1, x, middle_line)
         self.window.addstr(y + 2, x, border_line)
 
+    def draw_help_window(self):
+        self.help_window.border()
+        self.help_window.addstr(1, 1, "Help window")
+        self.help_window.refresh()
+
     # listener interface
     #
 
@@ -178,16 +215,38 @@ class CursesOutput:
         (self.board_width_tiles, self.board_height_tiles) = \
                 notifier.get_board_size()
         self.generate_parametrized()
-        self.redraw(*notifier.get_current_game_state())
+        (self.pieces, self.score) = notifier.get_current_game_state()
+        self.redraw()
 
     def unregister_notification(self):
         pass
 
     def game_state_change_notification(self, notifier):
-        self.redraw(*notifier.get_current_game_state())
+        (self.pieces, self.score) = notifier.get_current_game_state()
+        self.redraw()
+
+    def open_help(self):
+        width = self.window_width - self.help_window_margin * 2
+        height = self.window_height - self.help_window_margin * 2
+
+        self.help_window = curses.newwin(
+                height, width,
+                self.help_window_margin, self.help_window_margin)
+        self.redraw()
+
+    def close_help(self):
+        self.help_window = None
+        self.redraw()
 
 
 class CursesInput:
+    MOVEMENT_KEYS_TRANSLATION = {
+            curses.KEY_UP: GameController.MovementDirections.up,
+            curses.KEY_DOWN: GameController.MovementDirections.down,
+            curses.KEY_LEFT: GameController.MovementDirections.left,
+            curses.KEY_RIGHT: GameController.MovementDirections.right
+            }
+
     def __init__(self, window):
         self.window = window
         self.input_listeners = []
@@ -201,9 +260,14 @@ class CursesInput:
         elif (pressed_key == 0x1b):
             for listener in self.input_listeners:
                 listener.exit_event()
-        elif (pressed_key in MOVEMENT_KEYS):
+        elif (pressed_key in CursesInput.MOVEMENT_KEYS_TRANSLATION):
             for listener in self.input_listeners:
-                listener.movement_event(pressed_key)
+                listener.movement_event(
+                        CursesInput.
+                        MOVEMENT_KEYS_TRANSLATION[pressed_key])
+        elif (pressed_key == ord('?')):
+            for listener in self.input_listeners:
+                listener.help_event()
 
     # notifier interface
     #
