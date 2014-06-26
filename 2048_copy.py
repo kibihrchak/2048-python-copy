@@ -13,7 +13,6 @@ class GameController:
         right = 4
 
     def __init__(self):
-        self.init_game()
         self.output_listeners = []
         self.is_active = True
 
@@ -22,9 +21,17 @@ class GameController:
 
         self.help_displayed = False
 
+        self.init_game()
+
     def init_game(self):
         self.current_score = 0
-        self.pieces = [[0, 0, 2]]
+
+        self.pieces = [[0 for col in range(self.board_width)]
+                for row in range(self.board_height)]
+        self.pieces[0][0] = 2
+        self.pieces[0][1] = 4
+        self.pieces[1][0] = 8
+        self.pieces[2][2] = 16
 
     # controller info
     #
@@ -57,18 +64,70 @@ class GameController:
     #
 
     def movement_event(self, movement_direction):
-        if (movement_direction ==
-                GameController.MovementDirections.up):
-            self.pieces[0][1] = 0
-        elif (movement_direction ==
-                GameController.MovementDirections.down):
-            self.pieces[0][1] = self.board_height - 1
-        elif (movement_direction ==
-                GameController.MovementDirections.left):
-            self.pieces[0][0] = 0
-        elif (movement_direction ==
-                GameController.MovementDirections.right):
-            self.pieces[0][0] = self.board_width - 1
+        md = movement_direction
+        mds = GameController.MovementDirections
+        max_x = self.board_width - 1
+        max_y = self.board_height - 1
+        empty_tile = 0
+
+        pass_dir_dict = {
+                mds.up: 1,
+                mds.down: -1,
+                mds.left: 1,
+                mds.right: -1}
+        range_dict = {
+                mds.up: range(0, self.board_height, 1),
+                mds.down: range(max_y, -1, -1),
+                mds.left: range(0, self.board_width, 1),
+                mds.right: range(max_x, -1, -1)}
+        free_tile_init_index_dict = {
+                mds.up: self.board_height - 1,
+                mds.down: 0,
+                mds.left: self.board_width - 1,
+                mds.right: 0}
+
+        pass_dir = pass_dir_dict[md]
+        movement_line_range = range_dict[md]
+
+        if (md == mds.up) or (md == mds.down):
+            # direction lines are columns
+            for col in range(self.board_width):
+                free_tile_index = free_tile_init_index_dict[md]
+                free_tile_set = False
+                for row in movement_line_range:
+                    is_tile_empty = self.pieces[row][col] == empty_tile
+
+                    if is_tile_empty:
+                        if not free_tile_set:
+                            free_tile_index = row
+                            free_tile_set = True
+                    else:
+                        if free_tile_set:
+                            self.pieces[free_tile_index][col] = \
+                                    self.pieces[row][col]
+                            self.pieces[row][col] = empty_tile
+
+                            free_tile_index += pass_dir
+
+        elif (md == mds.left) or (md == mds.right):
+            # direction lines are columns
+            for row in range(self.board_height):
+                free_tile_index = free_tile_init_index_dict[md]
+                free_tile_set = False
+                for col in movement_line_range:
+                    is_tile_empty = self.pieces[row][col] == empty_tile
+
+                    if is_tile_empty:
+                        if not free_tile_set:
+                            free_tile_index = col
+                            free_tile_set = True
+                    else:
+                        if free_tile_set:
+                            self.pieces[row][free_tile_index] = \
+                                    self.pieces[row][col]
+                            self.pieces[row][col] = empty_tile
+
+                            free_tile_index += pass_dir
 
         self.current_score += 2
 
@@ -92,6 +151,7 @@ class GameController:
                 listener.close_help()
             self.help_displayed = False
 
+
 class CursesOutput:
     def __init__(self, window):
         self.window = window
@@ -109,7 +169,7 @@ class CursesOutput:
         self.board_x = 0
         self.board_y = 3
 
-        self.pieces = list()
+        self.pieces = None
         self.score = 0
 
         self.game_area_border_char = "="
@@ -180,11 +240,13 @@ class CursesOutput:
             start_line += self.tile_height
 
     def draw_pieces(self):
-        for piece in self.pieces:
-            self.draw_piece(
-                    piece[0] * self.tile_width + self.board_x,
-                    piece[1] * self.tile_height + self.board_y,
-                    piece[2])
+        for row in range(self.board_height_tiles):
+            for col in range(self.board_width_tiles):
+                piece_value = self.pieces[row][col]
+                if piece_value != 0:
+                    piece_x = col * self.tile_width + self.board_x
+                    piece_y = row * self.tile_height + self.board_y
+                    self.draw_piece(piece_x, piece_y, piece_value)
 
     def draw_piece(self, x, y, value):
         border_line = "".join((
