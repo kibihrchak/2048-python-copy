@@ -2,6 +2,7 @@
 
 import curses
 import os
+import random
 from enum import Enum
 
 
@@ -19,6 +20,8 @@ class GameController:
         self.board_width = 4
         self.board_height = 4
 
+        self.free_tiles = 0
+
         self.help_displayed = False
 
         self.init_game()
@@ -30,8 +33,36 @@ class GameController:
                 for row in range(self.board_height)]
         self.pieces[0][0] = 2
         self.pieces[0][1] = 4
-        self.pieces[1][0] = 8
-        self.pieces[2][2] = 16
+
+        self.free_tiles = self.board_width * self.board_height
+        self.free_tiles -= 2
+
+    def generate_piece(self):
+        new_free_tile_index = random.randint(0, self.free_tiles - 1)
+        new_piece_value = 2 ** random.randint(1, 2)
+
+        new_piece_inserted = False
+        current_free_tile_index = 0
+
+        for row in range(0, self.board_width):
+            if new_piece_inserted:
+                break
+            for col in range(0, self.board_height):
+                if self.pieces[row][col] == 0:
+                    if current_free_tile_index == new_free_tile_index:
+                        self.pieces[row][col] = new_piece_value
+                        new_piece_inserted = True
+                        break
+                    else:
+                        current_free_tile_index += 1
+
+        self.free_tiles -= 1
+
+    def moves_available(self):
+        if self.free_tiles > 0:
+            return True
+        else:
+            return False
 
     # controller info
     #
@@ -129,9 +160,15 @@ class GameController:
 
                             free_tile_index += pass_dir
 
+        self.generate_piece()
         self.current_score += 2
 
         self.notify_output_listeners()
+
+        # check endgame
+        if not self.moves_available():
+            for listener in self.output_listeners:
+                listener.endgame_event()
 
     def restart_event(self):
         self.init_game()
@@ -298,6 +335,15 @@ class CursesOutput:
 
     def close_help(self):
         self.help_window = None
+        self.redraw()
+
+    def endgame_event(self):
+        width = self.window_width - self.help_window_margin * 2
+        height = self.window_height - self.help_window_margin * 2
+
+        self.help_window = curses.newwin(
+                height, width,
+                self.help_window_margin, self.help_window_margin)
         self.redraw()
 
 
