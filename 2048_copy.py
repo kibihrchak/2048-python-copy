@@ -7,6 +7,8 @@ from enum import Enum
 
 
 class GameController:
+    EMPTY_TILE = 0
+
     class MovementDirections(Enum):
         up = 1
         down = 2
@@ -58,6 +60,83 @@ class GameController:
 
         self.free_tiles -= 1
 
+    def move_and_merge(self, dl_length, get_piece, set_piece):
+        cursor_index = 0
+        free_tile_index = -1
+        merging_piece_index = -1
+
+        merging_score = 0
+
+        while cursor_index < dl_length:
+            piece_val = get_piece(cursor_index)
+
+            if piece_val == GameController.EMPTY_TILE:
+                # the tile is free
+
+                if free_tile_index == -1:
+                    # free tile cursor is unset
+
+                    free_tile_index = cursor_index
+
+                cursor_index += 1
+            else:
+                # piece is found
+
+                if merging_piece_index != -1:
+                    # merging available
+
+                    if get_piece(merging_piece_index) == piece_val:
+                        # the pieces are the same
+
+                        # merge pieces
+                        set_piece(cursor_index, 
+                                GameController.EMPTY_TILE)
+                        set_piece(merging_piece_index, piece_val * 2)
+
+                        merging_score += piece_val
+                        merging_piece_index = -1
+                        self.free_tiles += 1
+                    elif free_tile_index != -1:
+                        # no merging, but there is a free tile
+
+                        # move the piece to the free tile
+                        set_piece(free_tile_index, piece_val)
+                        set_piece(cursor_index, 
+                                GameController.EMPTY_TILE)
+
+                        merging_piece_index = free_tile_index
+
+                        free_tile_index += 1
+                        cursor_index += 1
+                    else:
+                        # no merging, and no free tiles
+
+                        merging_piece_index = cursor_index
+                        cursor_index += 1
+                else:
+                    # merging unavailable
+
+                    if free_tile_index != -1:
+                        # there is a free tile
+
+                        # move the piece to the free tile
+                        set_piece(free_tile_index, piece_val)
+                        set_piece(cursor_index, 
+                                GameController.EMPTY_TILE)
+
+                        merging_piece_index = free_tile_index
+
+                        free_tile_index += 1
+                        cursor_index += 1
+                    else:
+                        # no free tiles
+
+                        merging_piece_index = cursor_index
+                        cursor_index += 1
+
+        return merging_score
+
+
     def moves_available(self):
         if self.free_tiles > 0:
             return True
@@ -97,71 +176,52 @@ class GameController:
     def movement_event(self, movement_direction):
         md = movement_direction
         mds = GameController.MovementDirections
-        max_x = self.board_width - 1
-        max_y = self.board_height - 1
-        empty_tile = 0
 
-        pass_dir_dict = {
-                mds.up: 1,
-                mds.down: -1,
-                mds.left: 1,
-                mds.right: -1}
-        range_dict = {
-                mds.up: range(0, self.board_height, 1),
-                mds.down: range(max_y, -1, -1),
-                mds.left: range(0, self.board_width, 1),
-                mds.right: range(max_x, -1, -1)}
-        free_tile_init_index_dict = {
-                mds.up: self.board_height - 1,
-                mds.down: 0,
-                mds.left: self.board_width - 1,
-                mds.right: 0}
-
-        pass_dir = pass_dir_dict[md]
-        movement_line_range = range_dict[md]
-
-        if (md == mds.up) or (md == mds.down):
-            # direction lines are columns
+        if md == mds.up:
             for col in range(self.board_width):
-                free_tile_index = free_tile_init_index_dict[md]
-                free_tile_set = False
-                for row in movement_line_range:
-                    is_tile_empty = self.pieces[row][col] == empty_tile
+                def getter(index):
+                    return self.pieces[index][col]
+                def setter(index, value):
+                    self.pieces[index][col] = value
 
-                    if is_tile_empty:
-                        if not free_tile_set:
-                            free_tile_index = row
-                            free_tile_set = True
-                    else:
-                        if free_tile_set:
-                            self.pieces[free_tile_index][col] = \
-                                    self.pieces[row][col]
-                            self.pieces[row][col] = empty_tile
+                self.current_score += self.move_and_merge(
+                        self.board_width, getter, setter)
 
-                            free_tile_index += pass_dir
+        elif md == mds.down:
+            for col in range(self.board_width):
+                def getter(index):
+                    row = self.board_height - index - 1
+                    return self.pieces[row][col]
+                def setter(index, value):
+                    row = self.board_height - index - 1
+                    self.pieces[row][col] = value
 
-        elif (md == mds.left) or (md == mds.right):
-            # direction lines are columns
+                self.current_score += self.move_and_merge(
+                        self.board_width, getter, setter)
+
+        elif md == mds.left:
             for row in range(self.board_height):
-                free_tile_index = free_tile_init_index_dict[md]
-                free_tile_set = False
-                for col in movement_line_range:
-                    is_tile_empty = self.pieces[row][col] == empty_tile
+                def getter(index):
+                    return self.pieces[row][index]
+                def setter(index, value):
+                    self.pieces[row][index] = value
 
-                    if is_tile_empty:
-                        if not free_tile_set:
-                            free_tile_index = col
-                            free_tile_set = True
-                    else:
-                        if free_tile_set:
-                            self.pieces[row][free_tile_index] = \
-                                    self.pieces[row][col]
-                            self.pieces[row][col] = empty_tile
+                self.current_score += self.move_and_merge(
+                        self.board_width, getter, setter)
 
-                            free_tile_index += pass_dir
+        elif md == mds.right:
+            for row in range(self.board_height):
+                def getter(index):
+                    col = self.board_width - index - 1
+                    return self.pieces[row][col]
+                def setter(index, value):
+                    col = self.board_width - index - 1
+                    self.pieces[row][col] = value
+
+                self.current_score += self.move_and_merge(
+                        self.board_width, getter, setter)
 
         self.generate_piece()
-        self.current_score += 2
 
         self.notify_output_listeners()
 
