@@ -66,6 +66,7 @@ class GameController:
         merging_piece_index = -1
 
         merging_score = 0
+        movement_done = False
 
         while cursor_index < dl_length:
             piece_val = get_piece(cursor_index)
@@ -94,6 +95,8 @@ class GameController:
                         set_piece(merging_piece_index, piece_val * 2)
 
                         merging_score += piece_val
+                        movement_done = True
+
                         merging_piece_index = -1
                         self.free_tiles += 1
                     elif free_tile_index != -1:
@@ -105,6 +108,8 @@ class GameController:
                                 GameController.EMPTY_TILE)
 
                         merging_piece_index = free_tile_index
+
+                        movement_done = True
 
                         free_tile_index += 1
                         cursor_index += 1
@@ -126,6 +131,8 @@ class GameController:
 
                         merging_piece_index = free_tile_index
 
+                        movement_done = True
+
                         free_tile_index += 1
                         cursor_index += 1
                     else:
@@ -134,14 +141,29 @@ class GameController:
                         merging_piece_index = cursor_index
                         cursor_index += 1
 
-        return merging_score
+        return (merging_score, movement_done)
 
 
     def moves_available(self):
+        # first check - are there free tiles?
         if self.free_tiles > 0:
             return True
-        else:
-            return False
+
+        # second check - are there mergings available?
+        #
+
+        # first pass - check by rows
+        for row in range(self.board_height):
+            for col in range(self.board_width - 1):
+                if self.pieces[row][col] == self.pieces[row][col + 1]:
+                    return True
+
+        for col in range(self.board_width):
+            for row in range(self.board_height - 1):
+                if self.pieces[row][col] == self.pieces[row + 1][col]:
+                    return True
+
+        return False
 
     # controller info
     #
@@ -177,6 +199,8 @@ class GameController:
         md = movement_direction
         mds = GameController.MovementDirections
 
+        movement_done = False
+
         if md == mds.up:
             for col in range(self.board_width):
                 def getter(index):
@@ -184,8 +208,11 @@ class GameController:
                 def setter(index, value):
                     self.pieces[index][col] = value
 
-                self.current_score += self.move_and_merge(
+                (ret_score, ret_movement_done) = self.move_and_merge(
                         self.board_width, getter, setter)
+
+                self.current_score += ret_score
+                movement_done = movement_done or ret_movement_done
 
         elif md == mds.down:
             for col in range(self.board_width):
@@ -196,8 +223,11 @@ class GameController:
                     row = self.board_height - index - 1
                     self.pieces[row][col] = value
 
-                self.current_score += self.move_and_merge(
+                (ret_score, ret_movement_done) = self.move_and_merge(
                         self.board_width, getter, setter)
+
+                self.current_score += ret_score
+                movement_done = movement_done or ret_movement_done
 
         elif md == mds.left:
             for row in range(self.board_height):
@@ -206,8 +236,11 @@ class GameController:
                 def setter(index, value):
                     self.pieces[row][index] = value
 
-                self.current_score += self.move_and_merge(
+                (ret_score, ret_movement_done) = self.move_and_merge(
                         self.board_width, getter, setter)
+
+                self.current_score += ret_score
+                movement_done = movement_done or ret_movement_done
 
         elif md == mds.right:
             for row in range(self.board_height):
@@ -218,10 +251,14 @@ class GameController:
                     col = self.board_width - index - 1
                     self.pieces[row][col] = value
 
-                self.current_score += self.move_and_merge(
+                (ret_score, ret_movement_done) = self.move_and_merge(
                         self.board_width, getter, setter)
 
-        self.generate_piece()
+                self.current_score += ret_score
+                movement_done = movement_done or ret_movement_done
+
+        if (movement_done):
+            self.generate_piece()
 
         self.notify_output_listeners()
 
