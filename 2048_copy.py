@@ -15,9 +15,15 @@ class GameController:
         left = 3
         right = 4
 
+    class GameStates(Enum):
+        gs_active = 1
+        gs_terminated = 2
+        gs_endgame = 3
+        gs_help = 4
+    
+
     def __init__(self):
         self.output_listeners = []
-        self.is_active = True
 
         self.board_width = 4
         self.board_height = 4
@@ -26,41 +32,10 @@ class GameController:
 
         self.help_displayed = False
 
-        self.init_game()
+        self.state = GameController.GameStates.gs_endgame
+        self.set_game_state(GameController.GameStates.gs_active)
 
-    def init_game(self):
-        self.current_score = 0
-
-        self.pieces = [[0 for col in range(self.board_width)]
-                for row in range(self.board_height)]
-        self.pieces[0][0] = 2
-        self.pieces[0][1] = 4
-
-        self.free_tiles = self.board_width * self.board_height
-        self.free_tiles -= 2
-
-    def generate_piece(self):
-        new_free_tile_index = random.randint(0, self.free_tiles - 1)
-        new_piece_value = 2 ** random.randint(1, 2)
-
-        new_piece_inserted = False
-        current_free_tile_index = 0
-
-        for row in range(0, self.board_width):
-            if new_piece_inserted:
-                break
-            for col in range(0, self.board_height):
-                if self.pieces[row][col] == 0:
-                    if current_free_tile_index == new_free_tile_index:
-                        self.pieces[row][col] = new_piece_value
-                        new_piece_inserted = True
-                        break
-                    else:
-                        current_free_tile_index += 1
-
-        self.free_tiles -= 1
-
-    def move_and_merge(self, dl_length, get_piece, set_piece):
+    def __move_and_merge(self, dl_length, get_piece, set_piece):
         cursor_index = 0
         free_tile_index = -1
         merging_piece_index = -1
@@ -143,6 +118,95 @@ class GameController:
 
         return (merging_score, movement_done)
 
+    # controller info
+    #
+
+    def get_game_state(self):
+        return self.state
+
+    def get_board_size(self):
+        return (self.board_width, self.board_height)
+
+    def get_board_state(self):
+        return (self.pieces, self.current_score)
+
+    # actions
+    #
+
+    def init_game(self):
+        self.current_score = 0
+
+        self.pieces = [[0 for col in range(self.board_width)]
+                for row in range(self.board_height)]
+        self.pieces[0][0] = 2
+        self.pieces[0][1] = 4
+
+        self.free_tiles = self.board_width * self.board_height
+        self.free_tiles -= 2
+
+    def move_merge_pieces(self, movement_direction):
+        md = movement_direction
+        mds = GameController.MovementDirections
+
+        movement_done = False
+
+        if md == mds.up:
+            for col in range(self.board_width):
+                def getter(index):
+                    return self.pieces[index][col]
+                def setter(index, value):
+                    self.pieces[index][col] = value
+
+                (ret_score, ret_movement_done) = self.__move_and_merge(
+                        self.board_width, getter, setter)
+
+                self.current_score += ret_score
+                movement_done = movement_done or ret_movement_done
+
+        elif md == mds.down:
+            for col in range(self.board_width):
+                def getter(index):
+                    row = self.board_height - index - 1
+                    return self.pieces[row][col]
+                def setter(index, value):
+                    row = self.board_height - index - 1
+                    self.pieces[row][col] = value
+
+                (ret_score, ret_movement_done) = self.__move_and_merge(
+                        self.board_width, getter, setter)
+
+                self.current_score += ret_score
+                movement_done = movement_done or ret_movement_done
+
+        elif md == mds.left:
+            for row in range(self.board_height):
+                def getter(index):
+                    return self.pieces[row][index]
+                def setter(index, value):
+                    self.pieces[row][index] = value
+
+                (ret_score, ret_movement_done) = self.__move_and_merge(
+                        self.board_width, getter, setter)
+
+                self.current_score += ret_score
+                movement_done = movement_done or ret_movement_done
+
+        elif md == mds.right:
+            for row in range(self.board_height):
+                def getter(index):
+                    col = self.board_width - index - 1
+                    return self.pieces[row][col]
+                def setter(index, value):
+                    col = self.board_width - index - 1
+                    self.pieces[row][col] = value
+
+                (ret_score, ret_movement_done) = self.__move_and_merge(
+                        self.board_width, getter, setter)
+
+                self.current_score += ret_score
+                movement_done = movement_done or ret_movement_done
+
+        return movement_done
 
     def moves_available(self):
         # first check - are there free tiles?
@@ -165,17 +229,95 @@ class GameController:
 
         return False
 
-    # controller info
+    def generate_piece(self):
+        new_free_tile_index = random.randint(0, self.free_tiles - 1)
+        new_piece_value = 2 ** random.randint(1, 2)
+
+        new_piece_inserted = False
+        current_free_tile_index = 0
+
+        for row in range(0, self.board_width):
+            if new_piece_inserted:
+                break
+            for col in range(0, self.board_height):
+                if self.pieces[row][col] == 0:
+                    if current_free_tile_index == new_free_tile_index:
+                        self.pieces[row][col] = new_piece_value
+                        new_piece_inserted = True
+                        break
+                    else:
+                        current_free_tile_index += 1
+
+        self.free_tiles -= 1
+
+    # game state control
     #
 
-    def get_state(self):
-        return self.is_active
+    def empty_event(self, *args):
+        pass
 
-    def get_board_size(self):
-        return (self.board_width, self.board_height)
+    def active_movement_event(self, movement_direction):
+        movement_done = self.move_merge_pieces(movement_direction)
 
-    def get_current_game_state(self):
-        return (self.pieces, self.current_score)
+        if (movement_done):
+            self.generate_piece()
+            self.notify_output_listeners()
+
+        # check endgame
+        if not self.moves_available():
+            self.set_game_state(GameController.GameStates.gs_endgame)
+
+    def active_restart_event(self):
+        self.set_game_state(GameController.GameStates.gs_active)
+
+    def active_help_event(self):
+        self.set_game_state(GameController.GameStates.gs_help)
+
+    def active_exit_event(self):
+        self.set_game_state(GameController.GameStates.gs_terminated)
+
+    def set_game_state(self, new_state):
+        if new_state == GameController.GameStates.gs_endgame:
+            for listener in self.output_listeners:
+                listener.show_endgame_message()
+
+            self.movement_event = self.empty_event
+
+        elif new_state == GameController.GameStates.gs_active:
+
+            self.movement_event = self.active_movement_event
+            self.restart_event = self.active_restart_event
+            self.help_event = self.active_help_event
+            self.exit_event = self.active_exit_event
+
+            if self.state == GameController.GameStates.gs_endgame:
+                for listener in self.output_listeners:
+                    listener.hide_endgame_message()
+
+            self.init_game()
+            self.notify_output_listeners()
+
+        elif new_state == GameController.GameStates.gs_help:
+            if self.state == GameController.GameStates.gs_help:
+                new_state = self.pre_help_state
+
+                self.movement_event = self.pre_help_movement_event
+                self.restart_event = self.pre_help_restart_event
+
+                for listener in self.output_listeners:
+                    listener.close_help()
+            else:
+                self.pre_help_state = self.state
+
+                self.pre_help_movement_event = self.movement_event
+                self.pre_help_restart_event = self.restart_event
+                self.movement_event = self.empty_event
+                self.restart_event = self.empty_event
+
+                for listener in self.output_listeners:
+                    listener.open_help()
+
+        self.state = new_state
 
     # notifier interface
     #
@@ -196,101 +338,23 @@ class GameController:
     #
 
     def movement_event(self, movement_direction):
-        md = movement_direction
-        mds = GameController.MovementDirections
-
-        movement_done = False
-
-        if md == mds.up:
-            for col in range(self.board_width):
-                def getter(index):
-                    return self.pieces[index][col]
-                def setter(index, value):
-                    self.pieces[index][col] = value
-
-                (ret_score, ret_movement_done) = self.move_and_merge(
-                        self.board_width, getter, setter)
-
-                self.current_score += ret_score
-                movement_done = movement_done or ret_movement_done
-
-        elif md == mds.down:
-            for col in range(self.board_width):
-                def getter(index):
-                    row = self.board_height - index - 1
-                    return self.pieces[row][col]
-                def setter(index, value):
-                    row = self.board_height - index - 1
-                    self.pieces[row][col] = value
-
-                (ret_score, ret_movement_done) = self.move_and_merge(
-                        self.board_width, getter, setter)
-
-                self.current_score += ret_score
-                movement_done = movement_done or ret_movement_done
-
-        elif md == mds.left:
-            for row in range(self.board_height):
-                def getter(index):
-                    return self.pieces[row][index]
-                def setter(index, value):
-                    self.pieces[row][index] = value
-
-                (ret_score, ret_movement_done) = self.move_and_merge(
-                        self.board_width, getter, setter)
-
-                self.current_score += ret_score
-                movement_done = movement_done or ret_movement_done
-
-        elif md == mds.right:
-            for row in range(self.board_height):
-                def getter(index):
-                    col = self.board_width - index - 1
-                    return self.pieces[row][col]
-                def setter(index, value):
-                    col = self.board_width - index - 1
-                    self.pieces[row][col] = value
-
-                (ret_score, ret_movement_done) = self.move_and_merge(
-                        self.board_width, getter, setter)
-
-                self.current_score += ret_score
-                movement_done = movement_done or ret_movement_done
-
-        if (movement_done):
-            self.generate_piece()
-
-        self.notify_output_listeners()
-
-        # check endgame
-        if not self.moves_available():
-            for listener in self.output_listeners:
-                listener.endgame_event()
+        pass
 
     def restart_event(self):
-        self.init_game()
-
-        self.notify_output_listeners()
+        pass
 
     def exit_event(self):
-        self.is_active = False
+        pass
 
     def help_event(self):
-        if not self.help_displayed:
-            for listener in self.output_listeners:
-                listener.open_help()
-            self.help_displayed = True
-        else:
-            for listener in self.output_listeners:
-                listener.close_help()
-            self.help_displayed = False
-
+        pass
 
 class CursesOutput:
     def __init__(self, window):
         self.window = window
 
         self.help_window = None
+        self.endgame_message = None
 
         # width, and height of a single tile in characters
         self.tile_width = 6
@@ -339,8 +403,10 @@ class CursesOutput:
         self.draw_pieces()
         self.window.refresh()
 
+        if self.endgame_message != None:
+            self.draw_window(self.endgame_message, "Endgame!")
         if self.help_window != None:
-            self.draw_help_window()
+            self.draw_window(self.help_window, "Help window.")
 
     def draw_game_window(self):
         game_area_border = \
@@ -399,10 +465,10 @@ class CursesOutput:
         self.window.addstr(y + 1, x, middle_line)
         self.window.addstr(y + 2, x, border_line)
 
-    def draw_help_window(self):
-        self.help_window.border()
-        self.help_window.addstr(1, 1, "Help window")
-        self.help_window.refresh()
+    def draw_window(self, window, message):
+        window.border()
+        window.addstr(1, 1, message)
+        window.refresh()
 
     # listener interface
     #
@@ -411,14 +477,14 @@ class CursesOutput:
         (self.board_width_tiles, self.board_height_tiles) = \
                 notifier.get_board_size()
         self.generate_parametrized()
-        (self.pieces, self.score) = notifier.get_current_game_state()
+        (self.pieces, self.score) = notifier.get_board_state()
         self.redraw()
 
     def unregister_notification(self):
         pass
 
     def game_state_change_notification(self, notifier):
-        (self.pieces, self.score) = notifier.get_current_game_state()
+        (self.pieces, self.score) = notifier.get_board_state()
         self.redraw()
 
     def open_help(self):
@@ -434,14 +500,17 @@ class CursesOutput:
         self.help_window = None
         self.redraw()
 
-    def endgame_event(self):
+    def show_endgame_message(self):
         width = self.window_width - self.help_window_margin * 2
         height = self.window_height - self.help_window_margin * 2
 
-        self.help_window = curses.newwin(
+        self.endgame_message = curses.newwin(
                 height, width,
                 self.help_window_margin, self.help_window_margin)
         self.redraw()
+    
+    def hide_endgame_message(self):
+        self.endgame_message = None
 
 
 class CursesInput:
@@ -494,7 +563,8 @@ def main(stdscr):
     gc.register_output_listener(co)
     ci.register_listener(gc)
 
-    while(gc.get_state()):
+    while(gc.get_game_state() !=
+            GameController.GameStates.gs_terminated):
         ci.get_input()
 
 if __name__ == "__main__":
