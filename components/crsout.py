@@ -139,16 +139,18 @@ class CursesOutput:
 
     def register_notification(self, notifier):
         (self.board_width_tiles, self.board_height_tiles) = \
-                notifier.get_board_size()
+                notifier.get_board_dimensions()
         self.generate_parametrized()
-        (self.pieces, self.score) = notifier.get_board_state()
+        self.pieces = notifier.get_board_state()
+        self.score = notifier.get_current_score()
         self.redraw()
 
     def unregister_notification(self):
         pass
 
     def game_state_change_notification(self, notifier):
-        (self.pieces, self.score) = notifier.get_board_state()
+        self.pieces = notifier.get_board_state()
+        self.score = notifier.get_current_score()
         self.redraw()
 
     def open_help(self):
