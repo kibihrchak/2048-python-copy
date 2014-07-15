@@ -20,7 +20,7 @@ class _DrawCharacters:
 class _SubWindow:
     _BORDER_WIDTH = 1
 
-    def _change_wh(self, new_width, new_height):
+    def _update_draw_area_size_pos(self, new_width, new_height):
         self._draw_area_xy = (
                 _SubWindow._BORDER_WIDTH,
                 _SubWindow._BORDER_WIDTH)
@@ -30,11 +30,27 @@ class _SubWindow:
 
     def __init__(self, x, y, width, height):
         self._window = curses.newwin(height, width, y, x)
-        self._change_wh(width, height)
+        self._update_draw_area_size_pos(width, height)
+
+    def get_window_size(self):
+        (win_height, win_width) = self._window.getmaxyx()
+        return (win_width, win_height)
+
+    def get_draw_area_size(self):
+        return tuple(dim - 2 * _SubWindow._BORDER_WIDTH for
+                dim in self.get_window_size())
+
+    def _resize_window(self, new_width, new_height):
+        self._window.resize(new_height, new_width)
+        self._update_draw_area_size_pos(new_width, new_height)
 
     def resize_window(self, new_width, new_height):
-        self._window.resize(new_height, new_width)
-        self._change_wh(new_width, new_height)
+        self._resize_window(new_width, new_height)
+
+    def resize_draw_area(self, new_width, new_height):
+        self._resize_window(
+                new_width + 2 * _SubWindow._BORDER_WIDTH,
+                new_height + 2 * _SubWindow._BORDER_WIDTH)
 
     def move_window(self, new_x, new_y):
         self._window.mvwin(new_y, new_x)
@@ -119,30 +135,34 @@ class _BoardWindow(_SubWindow):
             free_tile_value):
         super().__init__(x, y, width, height)
 
-        self._free_tile_value = free_tile_value
         self._board_wh_tiles = board_wh_tiles
-        self._calc_tile_size()
+        self._free_tile_value = free_tile_value
 
-    def _calc_tile_size(self):
+        # resize the window so that it fits the board
+        (board_width, board_height) = self._calc_tile_board_size()
+        super().resize_draw_area(board_width, board_height)
+
+    def _calc_tile_board_size(self):
         self._tile_wh = tuple(win_dim // cnt
                 for (win_dim, cnt) in
                 zip(self._draw_area_wh, self._board_wh_tiles))
         self._inside_tile_wh = tuple(
                 tile_dim - 2 for tile_dim in self._tile_wh)
-        self._board_wh = tuple(tile_dim * board_dim
+        return tuple(tile_dim * board_dim
                 for (tile_dim, board_dim) in
                 zip(self._tile_wh, self._board_wh_tiles))
 
-    def get_board_wh(self):
-        return self._board_wh
-
     def resize_window(self, new_width, new_height):
         super().resize_window(new_width, new_height)
-        self._calc_tile_size()
+        # resize the window so that it fits the board
+        (board_width, board_height) = self._calc_tile_board_size()
+        super().resize_draw_area(board_width, board_height)
+
+        return self.get_window_size()
     
     def change_board_dimensions(self, horizontal_tiles, vertical_tiles):
         self._board_wh_tiles = (horizontal_tiles, vertical_tiles)
-        self._calc_tile_size()
+        self._calc_tile_board_size()
 
     def set_board_pieces(self, pieces):
         self._pieces = pieces
@@ -154,7 +174,7 @@ class _BoardWindow(_SubWindow):
     def _draw_tiles(self):
         dc = _DrawCharacters
         border_line = \
-                dc.tile_border_char * self._board_wh[0]
+                dc.tile_border_char * self._draw_area_wh[0]
         inner_line_tile = "".join((
                 dc.tile_border_char,
                 dc.tile_inner_char * self._inside_tile_wh[0],
@@ -226,13 +246,17 @@ class CursesOutput:
     the game to the specified curses window.
     """
 
+    # number of lines used by the main window
+    _MAIN_WINDOW_LINES = 3
+
     def __init__(self, window, gamectrl):
         self._window = window
         self._gamectrl = gamectrl
 
-        (self._win_height, self._win_width) = self._window.getmaxyx()
-        (board_win_width, board_win_height) = (self._win_width, 
-                self._win_height - 3)
+        (win_height, win_width) = self._window.getmaxyx()
+        (board_win_width, board_win_height) = (
+                win_width,
+                win_height - CursesOutput._MAIN_WINDOW_LINES)
         
         self._board = _BoardWindow(
                 0, 2,
@@ -240,16 +264,27 @@ class CursesOutput:
                 self._gamectrl.get_board_dimensions(),
                 self._gamectrl.get_free_tile_value())
 
+        board_win_wh = self._board.get_window_size()
+        self.win_wh = (
+                board_win_wh[0],
+                board_win_wh[1] + CursesOutput._MAIN_WINDOW_LINES)
+
         self._help_window = None
         self._endgame_message = None
 
         self.update_game_state()
 
-    def resize(self):
-        (self._win_height, self._win_width) = self._window.getmaxyx()
-        (board_win_width, board_win_height) = (self._win_width, 
-                self._win_height - 3)
-        self._board.resize_window(board_win_width, board_win_height)
+    def update_size(self):
+        (win_height, win_width) = self._window.getmaxyx()
+        (board_win_width, board_win_height) = (
+                win_width,
+                win_height - CursesOutput._MAIN_WINDOW_LINES)
+        board_win_wh = self._board.resize_window(
+                board_win_width, board_win_height)
+        self.win_wh = (
+                board_win_wh[0],
+                board_win_wh[1] + CursesOutput._MAIN_WINDOW_LINES)
+
         self.redraw()
 
     def redraw(self):
@@ -266,9 +301,6 @@ class CursesOutput:
 
     def _draw_outer_elements(self):
         dc = _DrawCharacters
-        board_wh = self._board.get_board_wh()
-
-        game_area_border = dc.game_area_border_char * board_wh[0]
 
         draw_y = 0
 
@@ -278,9 +310,11 @@ class CursesOutput:
             self._window.insstr(draw_y, 0, line_text)
             draw_y += 1
 
+        # Top info
         draw_line("2048 copy")
         draw_line("Score: {}".format(self._score))
-        draw_y += board_wh[1]
+        # Status line
+        draw_y = self.win_wh[1] - 1
         draw_line("Status line")
 
     def update_game_state(self):

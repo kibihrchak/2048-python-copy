@@ -42,7 +42,7 @@ class CursesInput:
             for listener in self.input_listeners:
                 listener.help_event()
         elif (pressed_key == curses.KEY_RESIZE):
-            self._output_ctrl.resize()
+            self._output_ctrl.update_size()
 
 
     # notifier interface
