@@ -441,7 +441,7 @@ class GameController:
     def _set_game_state(self, new_state):
         if new_state == GameController._GameStates.gs_endgame:
             for listener in self._output_listeners:
-                listener.show_endgame_message()
+                listener.open_endgame_message()
 
             self.movement_event = self.empty_event
 

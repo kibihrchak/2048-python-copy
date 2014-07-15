@@ -6,6 +6,7 @@ Curses output module
 
 import curses
 import textwrap
+import enum
 from . import helpdocs
 
 class _DrawCharacters:
@@ -249,6 +250,11 @@ class CursesOutput:
     # number of lines used by the main window
     _MAIN_WINDOW_LINES = 3
 
+    class _MessageWindowIndices(enum.IntEnum):
+        mwi_intro = 0
+        mwi_endgame = 1
+        mwi_help = 2
+
     def __init__(self, window, gamectrl):
         self._window = window
         self._gamectrl = gamectrl
@@ -265,12 +271,11 @@ class CursesOutput:
                 self._gamectrl.get_free_tile_value())
 
         board_win_wh = self._board.get_window_size()
-        self.win_wh = (
+        self._win_wh = (
                 board_win_wh[0],
                 board_win_wh[1] + CursesOutput._MAIN_WINDOW_LINES)
 
-        self._help_window = None
-        self._endgame_message = None
+        self._message_windows = [None] * 3
 
         self.update_game_state()
 
@@ -281,9 +286,11 @@ class CursesOutput:
                 win_height - CursesOutput._MAIN_WINDOW_LINES)
         board_win_wh = self._board.resize_window(
                 board_win_width, board_win_height)
-        self.win_wh = (
+        self._win_wh = (
                 board_win_wh[0],
                 board_win_wh[1] + CursesOutput._MAIN_WINDOW_LINES)
+
+        self._update_message_window_sizes()
 
         self.redraw()
 
@@ -294,10 +301,9 @@ class CursesOutput:
 
         self._board.redraw()
 
-        if self._endgame_message != None:
-            self._endgame_message.redraw()
-        if self._help_window != None:
-            self._help_window.redraw()
+        for msg_window in self._message_windows:
+            if msg_window != None:
+                msg_window.redraw()
 
     def _draw_outer_elements(self):
         dc = _DrawCharacters
@@ -314,7 +320,7 @@ class CursesOutput:
         draw_line("2048 copy")
         draw_line("Score: {}".format(self._score))
         # Status line
-        draw_y = self.win_wh[1] - 1
+        draw_y = self._win_wh[1] - 1
         draw_line("Status line")
 
     def update_game_state(self):
@@ -322,31 +328,46 @@ class CursesOutput:
         self._score = self._gamectrl.get_current_score()
         self.redraw()
 
-    def open_help(self):
-        board_wh = self._board.get_board_wh()
-
-        self._help_window = _MessageWindow(
-                "2048 game help",
-                helpdocs.get_help_text(),
+    def _create_message_window(self, index, title, message):
+        self._message_windows[index] = _MessageWindow(
+                title, message,
                 1, 1,
-                board_wh[0] - 2, board_wh[1])
+                self._win_wh[0] - 2, self._win_wh[1] - 2)
+
+    def _remove_message_window(self, index):
+        self._message_windows[index] = None
+
+    def _update_message_window_sizes(self):
+        for msg_win in self._message_windows:
+            if msg_win != None:
+                msg_win.resize_window(
+                        self._win_wh[0] - 2,
+                        self._win_wh[1] - 2)
+
+    def open_help(self):
+        self._create_message_window(
+                CursesOutput._MessageWindowIndices.mwi_help,
+                "2048 game help",
+                helpdocs.get_help_text())
         self.redraw()
 
     def close_help(self):
-        self.help_window = None
+        self._remove_message_window(
+                CursesOutput._MessageWindowIndices.mwi_help)
         self.redraw()
 
     def open_endgame_message(self):
-        board_wh = self._board.get_board_wh()
-
-        self._endgame_message = _MessageWindow(
+        endgame_message = "".join([
+                "No more moves available. ",
+                "Current score is {}.".format(self._score)])
+        
+        self._create_message_window(
+                CursesOutput._MessageWindowIndices.mwi_endgame,
                 "Game End",
-                "No more moves available. Current score is"
-                "{}.".format(self._score),
-                2, 2,
-                board_wh[0] - 4, board_wh[1] - 4)
+                endgame_message)
         self.redraw()
     
     def hide_endgame_message(self):
-        self.endgame_message = None
+        self._remove_message_window(
+                CursesOutput._MessageWindowIndices.mwi_endgame)
         self.redraw()
