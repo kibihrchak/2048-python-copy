@@ -184,6 +184,9 @@ class GameController:
 
         return self._board.get_whole_board()
 
+    def get_free_tile_value(self):
+        return self._board.get_free_tile_value()
+
     def get_current_score(self):
         """
         Returns the current score
@@ -483,15 +486,13 @@ class GameController:
 
     def register_output_listener(self, output_listener):
         self._output_listeners.append(output_listener)
-        output_listener.register_notification(self)
 
     def unregister_output_listener(self, output_listener):
-        output_listener.unregister_notification(self)
         self._output_listeners.remove(output_listener)
 
     def notify_output_listeners(self):
         for listener in self._output_listeners:
-            listener.game_state_change_notification(self)
+            listener.update_game_state()
 
     # listener interface
     #

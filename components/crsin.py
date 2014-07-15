@@ -19,9 +19,10 @@ class CursesInput:
             curses.KEY_RIGHT: gamectrl.MovementDirections.right
             }
 
-    def __init__(self, window):
+    def __init__(self, window, output_ctrl):
         self.window = window
         self.input_listeners = []
+        self._output_ctrl = output_ctrl
 
     def get_input(self):
         pressed_key = self.window.getch()
@@ -40,6 +41,9 @@ class CursesInput:
         elif (pressed_key == ord('?')):
             for listener in self.input_listeners:
                 listener.help_event()
+        elif (pressed_key == curses.KEY_RESIZE):
+            self._output_ctrl.resize()
+
 
     # notifier interface
     #

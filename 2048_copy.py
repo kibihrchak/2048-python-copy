@@ -11,8 +11,8 @@ def main(stdscr):
     curses.curs_set(0)
 
     gc = components.gamectrl.GameController()
-    co = components.crsout.CursesOutput(stdscr)
-    ci = components.crsin.CursesInput(stdscr)
+    co = components.crsout.CursesOutput(stdscr, gc)
+    ci = components.crsin.CursesInput(stdscr, co)
 
     gc.register_output_listener(co)
     ci.register_listener(gc)
