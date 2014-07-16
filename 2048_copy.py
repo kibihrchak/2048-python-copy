@@ -12,10 +12,9 @@ def main(stdscr):
 
     gc = components.gamectrl.GameController()
     co = components.crsout.CursesOutput(stdscr, gc)
-    ci = components.crsin.CursesInput(stdscr, co)
+    ci = components.crsin.CursesInput(stdscr, gc, co)
 
-    gc.register_output_listener(co)
-    ci.register_listener(gc)
+    gc.resume_game()
 
     while(gc.is_active()):
         ci.get_input()

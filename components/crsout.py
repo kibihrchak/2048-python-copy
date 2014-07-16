@@ -249,37 +249,30 @@ class CursesOutput:
 
     # number of lines used by the main window
     _MAIN_WINDOW_LINES = 3
+    _MESSAGE_WINDOWS_CNT = 3
 
     class _MessageWindowIndices(enum.IntEnum):
         mwi_intro = 0
         mwi_endgame = 1
         mwi_help = 2
 
-    def __init__(self, window, gamectrl):
+    def __init__(self, window, game_ctrl):
         self._window = window
-        self._gamectrl = gamectrl
+        self._message_windows = \
+                [None] * CursesOutput._MESSAGE_WINDOWS_CNT
 
-        (win_height, win_width) = self._window.getmaxyx()
-        (board_win_width, board_win_height) = (
-                win_width,
-                win_height - CursesOutput._MAIN_WINDOW_LINES)
-        
+        self._game_ctrl = game_ctrl
+        self._game_ctrl.attach_output(self)
+
         self._board = _BoardWindow(
                 0, 2,
-                board_win_width, board_win_height,
-                self._gamectrl.get_board_dimensions(),
-                self._gamectrl.get_free_tile_value())
-
-        board_win_wh = self._board.get_window_size()
-        self._win_wh = (
-                board_win_wh[0],
-                board_win_wh[1] + CursesOutput._MAIN_WINDOW_LINES)
-
-        self._message_windows = [None] * 3
-
+                2, 2, # filler values
+                self._game_ctrl.get_board_dimensions(),
+                self._game_ctrl.get_free_tile_value())
+        self.update_size(False)
         self.update_game_state()
 
-    def update_size(self):
+    def update_size(self, redraw = True):
         (win_height, win_width) = self._window.getmaxyx()
         (board_win_width, board_win_height) = (
                 win_width,
@@ -292,7 +285,8 @@ class CursesOutput:
 
         self._update_message_window_sizes()
 
-        self.redraw()
+        if redraw:
+            self.redraw()
 
     def redraw(self):
         self._window.erase()
@@ -316,16 +310,16 @@ class CursesOutput:
             self._window.insstr(draw_y, 0, line_text)
             draw_y += 1
 
-        # Top info
+        # top info
         draw_line("2048 copy")
         draw_line("Score: {}".format(self._score))
-        # Status line
+        # status line
         draw_y = self._win_wh[1] - 1
         draw_line("Status line")
 
     def update_game_state(self):
-        self._board.set_board_pieces(self._gamectrl.get_board_state())
-        self._score = self._gamectrl.get_current_score()
+        self._board.set_board_pieces(self._game_ctrl.get_board_state())
+        self._score = self._game_ctrl.get_current_score()
         self.redraw()
 
     def _create_message_window(self, index, title, message):
@@ -367,7 +361,17 @@ class CursesOutput:
                 endgame_message)
         self.redraw()
     
-    def hide_endgame_message(self):
+    def close_endgame_message(self):
         self._remove_message_window(
                 CursesOutput._MessageWindowIndices.mwi_endgame)
         self.redraw()
+
+    def is_operational(self):
+        no_msg_windows_opened = True
+
+        for msg_win in self._message_windows:
+            if msg_win != None:
+                no_msg_windows_opened = False
+                break
+
+        return no_msg_windows_opened

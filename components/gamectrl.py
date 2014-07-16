@@ -21,6 +21,123 @@ class MovementDirections(enum.Enum):
     left = 3
     right = 4
 
+class _GameStates(enum.Enum):
+    """
+    Game controller states
+
+    Lists all the states game controller can be in.
+    """
+
+    gs_active = 1
+    gs_terminated = 2
+    gs_endgame = 3
+    gs_suspended = 4
+
+class _Board:
+    """
+    Game board class
+
+    Encapsulates the all manipulations with the game board.
+    """
+
+    def __init__(self, board_width, board_height, free_tile_value):
+        """
+        Creates an empty board with the given dimensions
+        """
+
+        self._board_width = board_width
+        self._board_height = board_height
+        self._free_tile_value = free_tile_value
+
+        self.reset_board()
+
+    def reset_board(self):
+        """
+        Resets board to the empty state
+        """
+
+        bwr = range(self._board_width)
+        bhr = range(self._board_height)
+        ftw = self._free_tile_value
+
+        self._board = [[ftw for col in bwr] for row in bhr]
+
+        self._free_tiles_cnt = \
+                self._board_width * self._board_height
+
+    def get_tile(self, row, col):
+        """
+        Returns the value of a tile on the given position
+        """
+
+        return self._board[row][col]
+
+    def set_tile(self, row, col, value):
+        """
+        Sets the value of a tile on the given position
+        """
+
+        new_tile_empty = value == self._free_tile_value
+        old_tile_empty = \
+                self._board[row][col] == self._free_tile_value
+
+        if new_tile_empty and not old_tile_empty:
+            self._free_tiles_cnt += 1
+        elif not new_tile_empty and old_tile_empty:
+            self._free_tiles_cnt -= 1
+
+        self._board[row][col] = value
+
+    def get_board_dimensions(self):
+        """
+        Returns the board width, and height, in tiles
+        """
+
+        return (self._board_width, self._board_height)
+
+    def get_free_tile_value(self):
+        """
+        Returns the value used to indicate a free tile
+        """
+
+        return self._free_tile_value
+
+    def get_free_tiles_cnt(self):
+        """
+        Returns the number of free tiles on the board
+        """
+
+        return self._free_tiles_cnt
+
+    def generate_piece(self):
+        """
+        Generate new piece on the randomly selected free tile
+        """
+
+        new_free_tile_index = random.randint(
+                0, self._free_tiles_cnt - 1)
+        new_piece_value = 2 ** random.randint(1, 2)
+
+        new_piece_inserted = False
+        current_free_tile_index = 0
+
+        for row in range(0, self._board_width):
+            for col in range(0, self._board_height):
+                if self._board[row][col] == self._free_tile_value:
+                    if current_free_tile_index == new_free_tile_index:
+                        self._board[row][col] = new_piece_value
+                        self._free_tiles_cnt -= 1
+                        return
+                    else:
+                        current_free_tile_index += 1
+
+    def get_whole_board(self):
+        """
+        Returns the whole board
+        """
+
+        return self._board
+
 class GameController:
     """
     Game controller class
@@ -29,136 +146,20 @@ class GameController:
     the game.
     """
 
-    class _GameStates(enum.Enum):
-        """
-        Game controller states
-
-        Lists all the states game controller can be in.
-        """
-
-        gs_active = 1
-        gs_terminated = 2
-        gs_endgame = 3
-        gs_help = 4
-
-    class _Board:
-        """
-        Game board class
-
-        Encapsulates the all manipulations with the game board.
-        """
-
-        def __init__(self, board_width, board_height, free_tile_value):
-            """
-            Creates an empty board with the given dimensions
-            """
-
-            self._board_width = board_width
-            self._board_height = board_height
-            self._free_tile_value = free_tile_value
-
-            self.reset_board()
-
-        def reset_board(self):
-            """
-            Resets board to the empty state
-            """
-
-            bwr = range(self._board_width)
-            bhr = range(self._board_height)
-            ftw = self._free_tile_value
-
-            self._board = [[ftw for col in bwr] for row in bhr]
-
-            self._free_tiles_cnt = \
-                    self._board_width * self._board_height
-
-        def get_tile(self, row, col):
-            """
-            Returns the value of a tile on the given position
-            """
-
-            return self._board[row][col]
-
-        def set_tile(self, row, col, value):
-            """
-            Sets the value of a tile on the given position
-            """
-
-            new_tile_empty = value == self._free_tile_value
-            old_tile_empty = \
-                    self._board[row][col] == self._free_tile_value
-
-            if new_tile_empty and not old_tile_empty:
-                self._free_tiles_cnt += 1
-            elif not new_tile_empty and old_tile_empty:
-                self._free_tiles_cnt -= 1
-
-            self._board[row][col] = value
-
-        def get_board_dimensions(self):
-            """
-            Returns the board width, and height, in tiles
-            """
-
-            return (self._board_width, self._board_height)
-
-        def get_free_tile_value(self):
-            """
-            Returns the value used to indicate a free tile
-            """
-
-            return self._free_tile_value
-
-        def get_free_tiles_cnt(self):
-            """
-            Returns the number of free tiles on the board
-            """
-
-            return self._free_tiles_cnt
-
-        def generate_piece(self):
-            """
-            Generate new piece on the randomly selected free tile
-            """
-
-            new_free_tile_index = random.randint(
-                    0, self._free_tiles_cnt - 1)
-            new_piece_value = 2 ** random.randint(1, 2)
-
-            new_piece_inserted = False
-            current_free_tile_index = 0
-
-            for row in range(0, self._board_width):
-                for col in range(0, self._board_height):
-                    if self._board[row][col] == self._free_tile_value:
-                        if current_free_tile_index == new_free_tile_index:
-                            self._board[row][col] = new_piece_value
-                            self._free_tiles_cnt -= 1
-                            return
-                        else:
-                            current_free_tile_index += 1
-
-        def get_whole_board(self):
-            """
-            Returns the whole board
-            """
-
-            return self._board
-
     def __init__(self,
-            board_width = 4, board_height = 4, free_tile_value = 0):
+            board_width = 4, board_height = 4,
+            free_tile_value = 0):
         """
         Create the board in the initial state, ready to play
         """
 
-        self._board = GameController._Board(
-                board_width, board_height, free_tile_value)
+        self._board = _Board(board_width, board_height, free_tile_value)
+        self._state = _GameStates.gs_suspended
 
-        self._output_listeners = []
+        self._output_ctrl = None
+        self._input_ctrl = None
 
-        self._state = GameController._GameStates.gs_endgame
-        self._set_game_state(GameController._GameStates.gs_active)
+        self._reset_game_state()
 
     # controller info
     #
@@ -168,7 +169,7 @@ class GameController:
         Returns true value if the game is running
         """
 
-        return self._state != GameController._GameStates.gs_terminated
+        return self._state != _GameStates.gs_terminated
 
     def get_board_dimensions(self):
         """
@@ -194,20 +195,181 @@ class GameController:
 
         return self._current_score
 
-    # actions
+    # controller actions
     #
 
-    def _reset_board(self):
+    def attach_output(self, output_ctrl):
         """
-        Resets only the board, and the current score.
+        Attach the output controller
         """
 
-        self._board.reset_board()
+        self._output_ctrl = output_ctrl
 
-        for i in range(2):
-            self.generate_piece()
+    def attach_input(self, input_ctrl):
+        """
+        Attach the input controller
+        """
 
-        self._current_score = 0
+        self._input_ctrl = input_ctrl
+
+    def reset_game(self):
+        """
+        Resets the game
+
+        This method performs the full reset. The whole game controller 
+        will be put in the initial state, as it was when the game was 
+        first run.
+        """
+
+        # method state-dependent operation:
+        #
+        # state         operation
+        # ------------- ------------------------------------------------
+        # gs_active     resets the game
+        # gs_terminated does nothing
+        # gs_endgame    resets the game
+        # gs_suspended  does nothing
+
+        perform_reset = \
+                self._state == _GameStates.gs_active or \
+                self._state == _GameStates.gs_endgame
+
+        if perform_reset:
+            self._reset_game_state()
+            self._output_ctrl.update_game_state()
+
+        # method state-changing operation:
+        #
+        # from state    to state        condition
+        # ------------- --------------- --------------------------------
+        # gs_endgame    gs_active       unconditionally
+
+        if self._state == _GameStates.gs_endgame:
+            self._state = _GameStates.gs_active
+
+    def close_game(self):
+        """
+        Terminate the execution of the game
+        """
+        # method state-changing operation:
+        #
+        # from state    to state        condition
+        # ------------- --------------- --------------------------------
+        # any           gs_terminated   uncond.
+
+        self._state = _GameStates.gs_terminated
+
+    def move_pieces(self, movement_direction):
+        """
+        Piece movement, and merge, for the whole board
+
+        Performs the piece movement, and merging, in the given direction 
+        for the whole board. After that, checks if there are available
+        moves.
+        """
+
+        # method state-dependent operation:
+        #
+        # state         operation
+        # ------------- ------------------------------------------------
+        # gs_active     move, and merge pieces
+        # gs_terminated does nothing
+        # gs_endgame    does nothing
+        # gs_suspended  does nothing
+
+        if self._state == _GameStates.gs_active:
+            md = movement_direction
+            mds = MovementDirections
+            (bw, bh) = self._board.get_board_dimensions()
+
+            movement_done = False
+
+            transl_map = {
+                    mds.up:     lambda pr_ind, sc_ind: \
+                            (pr_ind, sc_ind),
+                    mds.down:   lambda pr_ind, sc_ind: \
+                            (bh - pr_ind - 1, sc_ind),
+                    mds.left:   lambda pr_ind, sc_ind: \
+                            (sc_ind, pr_ind),
+                    mds.right:  lambda pr_ind, sc_ind: \
+                            (sc_ind, bw - pr_ind - 1)}
+
+            iter_limit_map = {
+                    mds.up:     (bw, bh),
+                    mds.down:   (bw, bh),
+                    mds.left:   (bh, bw),
+                    mds.right:  (bh, bw)}
+
+            (outer_iter_limit, dir_line_length) = iter_limit_map[md]
+            coord_transl_f = transl_map[md]
+
+            for sc_ind in range(outer_iter_limit):
+                def getter(index):
+                    return self._board.get_tile(
+                            *coord_transl_f(index, sc_ind))
+                def setter(index, value):
+                    (row, col) = coord_transl_f(index, sc_ind)
+                    self._board.set_tile(row, col, value)
+
+                (ret_score, ret_movement_done) = \
+                        self._move_merge_pieces_dl(
+                        dir_line_length, getter, setter)
+
+                self._current_score += ret_score
+                movement_done = movement_done or ret_movement_done
+
+            if (movement_done):
+                self._board.generate_piece()
+                self._output_ctrl.update_game_state()
+
+        # method state-changing operation:
+        #
+        # from state    to state        condition
+        # ------------- --------------- --------------------------------
+        # gs_active     gs_endgame      no moves available
+
+        go_to_endgame = \
+                self._state == _GameStates.gs_active and \
+                not self._moves_available()
+        
+        if go_to_endgame:
+            self._state = _GameStates.gs_endgame
+
+    def suspend_game(self):
+        """
+        Suspend the game
+        """
+
+        # method state-changing operation:
+        #
+        # from state    to state        condition
+        # ------------- --------------- --------------------------------
+        # gs_active     gs_suspended    unconditionally
+
+        if self._state == _GameStates.gs_active:
+            self._state = _GameStates.gs_suspended
+
+    def resume_game(self):
+        """
+        Resume the game
+        """
+
+        # method state-changing operation:
+        #
+        # from state    to state        condition
+        # ------------- --------------- --------------------------------
+        # gs_suspended  gs_active       other controllers are oper.
+
+        resume_cond = \
+                self._state == _GameStates.gs_suspended and \
+                self._output_ctrl.is_operational() and \
+                self._input_ctrl.is_operational()
+
+        if resume_cond:
+            self._state = _GameStates.gs_active
+
+    # auxiliary operations
+    #
 
     def _move_merge_pieces_dl(self, dl_length, get_piece, set_piece):
         """
@@ -303,69 +465,7 @@ class GameController:
 
         return (merging_score, movement_done)
 
-    def reset_game(self):
-        """
-        Resets the game
-
-        This method performs the full reset. The whole game controller 
-        will be put in the initial state, as it was when the game was 
-        first run. All output controllers will be notified.
-        """
-
-        self._reset_board()
-        self.notify_output_listeners()
-        self.set_game_state(GameController._GameStates.gs_active)
-
-    def move_merge_pieces(self, movement_direction):
-        """
-        Piece movement, and merge, for the whole board
-
-        Performs the piece movement, and merging, in the given direction 
-        for the whole board.
-        """
-
-        md = movement_direction
-        mds = MovementDirections
-        (bw, bh) = self._board.get_board_dimensions()
-
-        movement_done = False
-
-        transl_map = {
-                mds.up:     lambda pr_ind, sc_ind: \
-                        (pr_ind, sc_ind),
-                mds.down:   lambda pr_ind, sc_ind: \
-                        (bh - pr_ind - 1, sc_ind),
-                mds.left:   lambda pr_ind, sc_ind: \
-                        (sc_ind, pr_ind),
-                mds.right:  lambda pr_ind, sc_ind: \
-                        (sc_ind, bw - pr_ind - 1)}
-
-        iter_limit_map = {
-                mds.up:     (bw, bh),
-                mds.down:   (bw, bh),
-                mds.left:   (bh, bw),
-                mds.right:  (bh, bw)}
-
-        (outer_iter_limit, dir_line_length) = iter_limit_map[md]
-        coord_transl_f = transl_map[md]
-
-        for sc_ind in range(outer_iter_limit):
-            def getter(index):
-                return self._board.get_tile(
-                        *coord_transl_f(index, sc_ind))
-            def setter(index, value):
-                (row, col) = coord_transl_f(index, sc_ind)
-                self._board.set_tile(row, col, value)
-
-            (ret_score, ret_movement_done) = self._move_merge_pieces_dl(
-                    dir_line_length, getter, setter)
-
-            self._current_score += ret_score
-            movement_done = movement_done or ret_movement_done
-
-        return movement_done
-
-    def moves_available(self):
+    def _moves_available(self):
         """
         Check if there are any valid moves available
         """
@@ -401,110 +501,14 @@ class GameController:
 
         return False
 
-    def generate_piece(self):
+    def _reset_game_state(self):
         """
-        Generate new piece
-        """
-
-        self._board.generate_piece()
-
-    def whole_movement_turn(self, movement_direction):
-        """
-        Perform all operations specified for a movement request
+        Resets the game state
         """
 
-        movement_done = self.move_merge_pieces(movement_direction)
+        self._board.reset_board()
 
-        if (movement_done):
-            self.generate_piece()
-            self.notify_output_listeners()
+        for i in range(2):
+            self._board.generate_piece()
 
-        # check endgame
-        if not self.moves_available():
-            self._set_game_state(GameController._GameStates.gs_endgame)
-
-    # game state control
-    #
-
-    def empty_event(self, *args):
-        pass
-
-    def active_restart_event(self):
-        self._set_game_state(GameController._GameStates.gs_active)
-
-    def active_help_event(self):
-        self._set_game_state(GameController._GameStates.gs_help)
-
-    def active_exit_event(self):
-        self._set_game_state(GameController._GameStates.gs_terminated)
-
-    def _set_game_state(self, new_state):
-        if new_state == GameController._GameStates.gs_endgame:
-            for listener in self._output_listeners:
-                listener.open_endgame_message()
-
-            self.movement_event = self.empty_event
-
-        elif new_state == GameController._GameStates.gs_active:
-
-            self.movement_event = self.whole_movement_turn
-            self.restart_event = self.active_restart_event
-            self.help_event = self.active_help_event
-            self.exit_event = self.active_exit_event
-
-            if self._state == GameController._GameStates.gs_endgame:
-                for listener in self._output_listeners:
-                    listener.hide_endgame_message()
-
-            self._reset_board()
-            self.notify_output_listeners()
-
-        elif new_state == GameController._GameStates.gs_help:
-            if self._state == GameController._GameStates.gs_help:
-                new_state = self.pre_help_state
-
-                self.movement_event = self._pre_help_movement_event
-                self.restart_event = self._pre_help_restart_event
-
-                for listener in self._output_listeners:
-                    listener.close_help()
-            else:
-                self.pre_help_state = self._state
-
-                self._pre_help_movement_event = self.movement_event
-                self._pre_help_restart_event = self.restart_event
-                self.movement_event = self.empty_event
-                self.restart_event = self.empty_event
-
-                for listener in self._output_listeners:
-                    listener.open_help()
-
-        self._state = new_state
-
-    # notifier interface
-    #
-
-    def register_output_listener(self, output_listener):
-        self._output_listeners.append(output_listener)
-
-    def unregister_output_listener(self, output_listener):
-        self._output_listeners.remove(output_listener)
-
-    def notify_output_listeners(self):
-        for listener in self._output_listeners:
-            listener.update_game_state()
-
-    # listener interface
-    #
-
-    def movement_event(self, movement_direction):
-        pass
-
-    def restart_event(self):
-        pass
-
-    def exit_event(self):
-        pass
-
-    def help_event(self):
-        pass
+        self._current_score = 0
