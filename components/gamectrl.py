@@ -117,6 +117,7 @@ class _Board:
         new_free_tile_index = random.randint(
                 0, self._free_tiles_cnt - 1)
         new_piece_value = 2 ** random.randint(1, 2)
+        #new_piece_value = 2 ** random.randint(1, 12)
 
         new_piece_inserted = False
         current_free_tile_index = 0
@@ -237,6 +238,7 @@ class GameController:
         if perform_reset:
             self._reset_game_state()
             self._output_ctrl.update_game_state()
+            self._output_ctrl.close_endgame_message()
 
         # method state-changing operation:
         #
@@ -334,6 +336,7 @@ class GameController:
         
         if go_to_endgame:
             self._state = _GameStates.gs_endgame
+            self._output_ctrl.open_endgame_message()
 
     def suspend_game(self):
         """
@@ -509,6 +512,7 @@ class GameController:
         self._board.reset_board()
 
         for i in range(2):
+        #for i in range(15):
             self._board.generate_piece()
 
         self._current_score = 0

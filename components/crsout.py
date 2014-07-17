@@ -270,6 +270,10 @@ class CursesOutput:
                 self._game_ctrl.get_board_dimensions(),
                 self._game_ctrl.get_free_tile_value())
         self.update_size(False)
+        self._create_message_window(
+                CursesOutput._MessageWindowIndices.mwi_intro,
+                "Intro window",
+                "Intro window text")
         self.update_game_state()
 
     def update_size(self, redraw = True):
@@ -375,3 +379,8 @@ class CursesOutput:
                 break
 
         return no_msg_windows_opened
+
+    def close_intro_window(self):
+        self._remove_message_window(
+                CursesOutput._MessageWindowIndices.mwi_intro)
+        self.redraw()
