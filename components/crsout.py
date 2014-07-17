@@ -104,8 +104,14 @@ class _MessageWindow(_SubWindow):
     def _actual_draw(self):
         TITLE_INDENT = 2
 
+        if self._num_pages > 1:
+            title_pages = self._title + " (page {} of {})".format(
+                    self._page_index + 1, self._num_pages)
+        else:
+            title_pages = self._title
+
         prepared_title = textwrap.shorten(
-                self._title,
+                title_pages,
                 width = self._draw_area_wh[0] - (TITLE_INDENT * 2),
                 placeholder = "...")
 
@@ -272,8 +278,8 @@ class CursesOutput:
         self.update_size(False)
         self._create_message_window(
                 CursesOutput._MessageWindowIndices.mwi_intro,
-                "Intro window",
-                "Intro window text")
+                "Hello, fellow user!",
+                r"This is the realization of the 2048 game (http://gabrielecirulli.github.io/2048/) in Python. Press <ESC> to exit, '?' for help, any other key to continue.")
         self.update_game_state()
 
     def update_size(self, redraw = True):
@@ -356,8 +362,8 @@ class CursesOutput:
 
     def open_endgame_message(self):
         endgame_message = "".join([
-                "No more moves available. ",
-                "Current score is {}.".format(self._score)])
+                "Game end",
+                "Sorry, no more moves available =(. Current score is {}.".format(self._score)])
         
         self._create_message_window(
                 CursesOutput._MessageWindowIndices.mwi_endgame,
@@ -384,3 +390,34 @@ class CursesOutput:
         self._remove_message_window(
                 CursesOutput._MessageWindowIndices.mwi_intro)
         self.redraw()
+
+    def _get_top_window(self):
+        top_win = None
+
+        for msg_win in self._message_windows:
+            if msg_win != None:
+                top_win = msg_win
+
+        return top_win
+
+    def current_win_next_page(self):
+        curr_win = self._get_top_window()
+
+        if curr_win != None:
+            current_page_index = curr_win.get_page_index()
+            if current_page_index == curr_win.get_num_pages() - 1:
+                curr_win.set_page_index(0)
+            else:
+                curr_win.set_page_index(current_page_index + 1)
+            self.redraw()
+
+    def current_win_previous_page(self):
+        curr_win = self._get_top_window()
+
+        if curr_win != None:
+            current_page_index = curr_win.get_page_index()
+            if current_page_index == 0:
+                curr_win.set_page_index(curr_win.get_num_pages() - 1)
+            else:
+                curr_win.set_page_index(current_page_index - 1)
+            self.redraw()
