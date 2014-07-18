@@ -10,6 +10,10 @@ import enum
 from . import helpdocs
 
 class _DrawCharacters:
+    """
+    Characters that are used for drawing the game
+    """
+
     game_area_border_char = "="
     tile_border_char = "."
     tile_inner_char = " "
@@ -19,6 +23,14 @@ class _DrawCharacters:
     piece_inner_char = " "
 
 class _SubWindow:
+    """
+    Game sub-window
+
+    This sub-window represents the base for the other, concrete
+    sub-windows. It provides the base for drawing, and resizing the
+    window.
+    """
+
     _BORDER_WIDTH = 1
 
     def _update_draw_area_size_pos(self, new_width, new_height):
@@ -41,6 +53,8 @@ class _SubWindow:
         return tuple(dim - 2 * _SubWindow._BORDER_WIDTH for
                 dim in self.get_window_size())
 
+    # needs to be separate method because it will be called from the
+    # subclasses
     def _resize_window(self, new_width, new_height):
         self._window.resize(new_height, new_width)
         self._update_draw_area_size_pos(new_width, new_height)
@@ -90,11 +104,14 @@ class _MessageWindow(_SubWindow):
                         width = self._draw_area_wh[0])
                 self._message_lines.extend(wrapped_paragraph)
             else:
-                # [TODO] quick fix for avoiding the newline skips
+                # [TODO] quick fix to avoid the skipping of newlines
                 self._message_lines.append("")
 
+        # sign change is done in order to get the ceiling while rounding
+        # the real value
         self._num_pages = -(
                 -len(self._message_lines) // self._draw_area_wh[1])
+
         self._page_index = 0
 
     def resize_window(self, new_width, new_height):
@@ -105,6 +122,7 @@ class _MessageWindow(_SubWindow):
         TITLE_INDENT = 2
 
         if self._num_pages > 1:
+            # add the curr. page index in the title
             title_pages = self._title + " (page {} of {})".format(
                     self._page_index + 1, self._num_pages)
         else:
@@ -138,6 +156,12 @@ class _MessageWindow(_SubWindow):
         self._page_index = index
 
 class _BoardWindow(_SubWindow):
+    """
+    Board sub-window
+
+    This window is used to represent the game board.
+    """
+
     def __init__(self, x, y, width, height, board_wh_tiles, 
             free_tile_value):
         super().__init__(x, y, width, height)
@@ -145,11 +169,13 @@ class _BoardWindow(_SubWindow):
         self._board_wh_tiles = board_wh_tiles
         self._free_tile_value = free_tile_value
 
-        # resize the window so that it fits the board
-        (board_width, board_height) = self._calc_tile_board_size()
-        super().resize_draw_area(board_width, board_height)
+        self._fit_window_to_board()
 
     def _calc_tile_board_size(self):
+        """
+        Calculate the size of tiles, and board, in characters
+        """
+
         self._tile_wh = tuple(win_dim // cnt
                 for (win_dim, cnt) in
                 zip(self._draw_area_wh, self._board_wh_tiles))
@@ -159,11 +185,13 @@ class _BoardWindow(_SubWindow):
                 for (tile_dim, board_dim) in
                 zip(self._tile_wh, self._board_wh_tiles))
 
-    def resize_window(self, new_width, new_height):
-        super().resize_window(new_width, new_height)
-        # resize the window so that it fits the board
+    def _fit_window_to_board(self):
         (board_width, board_height) = self._calc_tile_board_size()
         super().resize_draw_area(board_width, board_height)
+
+    def resize_window(self, new_width, new_height):
+        super().resize_window(new_width, new_height)
+        self._fit_window_to_board()
 
         return self.get_window_size()
     
@@ -255,9 +283,14 @@ class CursesOutput:
 
     # number of lines used by the main window
     _MAIN_WINDOW_LINES = 3
+    # number of message windows
     _MESSAGE_WINDOWS_CNT = 3
 
     class _MessageWindowIndices(enum.IntEnum):
+        """
+        Maps the indices in the window list to specific windows
+        """
+
         mwi_intro = 0
         mwi_endgame = 1
         mwi_help = 2
@@ -269,6 +302,8 @@ class CursesOutput:
 
         self._game_ctrl = game_ctrl
         self._game_ctrl.attach_output(self)
+
+        self._status_line_text = "Game status line"
 
         self._board = _BoardWindow(
                 0, 2,
@@ -289,6 +324,8 @@ class CursesOutput:
                 win_height - CursesOutput._MAIN_WINDOW_LINES)
         board_win_wh = self._board.resize_window(
                 board_win_width, board_win_height)
+        # because the board will fit to the size of the board, the main
+        # window now needs to accomodate to it
         self._win_wh = (
                 board_win_wh[0],
                 board_win_wh[1] + CursesOutput._MAIN_WINDOW_LINES)
@@ -325,7 +362,7 @@ class CursesOutput:
         draw_line("Score: {}".format(self._score))
         # status line
         draw_y = self._win_wh[1] - 1
-        draw_line("Status line")
+        draw_line(self._status_line_text)
 
     def update_game_state(self):
         self._board.set_board_pieces(self._game_ctrl.get_board_state())
@@ -362,8 +399,8 @@ class CursesOutput:
 
     def open_endgame_message(self):
         endgame_message = "".join([
-                "Game end",
-                "Sorry, no more moves available =(. Current score is {}.".format(self._score)])
+                "Sorry, no more moves available =(.",
+                " Current score is {}.".format(self._score)])
         
         self._create_message_window(
                 CursesOutput._MessageWindowIndices.mwi_endgame,
@@ -377,6 +414,13 @@ class CursesOutput:
         self.redraw()
 
     def is_operational(self):
+        """
+        Get the operational state of the component
+
+        Returns the information if this component is able to function
+        properly.
+        """
+
         no_msg_windows_opened = True
 
         for msg_win in self._message_windows:
